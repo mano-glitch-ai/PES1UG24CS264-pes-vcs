@@ -66,8 +66,18 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     char header[64];
     int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
 
-    // TODO: hash header+data, shard, atomic temp+fsync+rename
-    (void)header_len; (void)data; (void)id_out;
+    // Concatenate header and data into a single buffer so the hash covers both.
+    size_t full_len = (size_t)header_len + len;
+    uint8_t *full = malloc(full_len);
+    if (!full) return -1;
+    memcpy(full, header, header_len);
+    memcpy(full + header_len, data, len);
+
+    // Content-addressed name: SHA-256 over the full object bytes.
+    compute_hash(full, full_len, id_out);
+
+    // TODO: shard, atomic temp+fsync+rename
+    free(full);
     return -1;
 }
 
