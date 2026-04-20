@@ -17,7 +17,9 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-/* Weak: index_load lives in index.c which isn't linked into test_tree. */
+/* Forward decls: no object.h in template; index_load is weak because
+   index.o is not linked into test_tree. */
+extern int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 extern int index_load(Index *index) __attribute__((weak));
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
@@ -147,8 +149,13 @@ static int build_tree_level(const IndexEntry *entries, int lo, int hi,
         }
     }
 
-    (void)out_hash;
-    return -1;
+    void *data = NULL;
+    size_t len = 0;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+
+    int rc = object_write(OBJ_TREE, data, len, out_hash);
+    free(data);
+    return rc;
 }
 
 // Serialize a Tree struct into binary format for storage.
