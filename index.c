@@ -203,7 +203,8 @@ int index_save(const Index *index) {
     qsort(sorted.entries, sorted.count, sizeof(IndexEntry),
           compare_index_entries_by_path);
 
-    FILE *f = fopen(INDEX_FILE, "w");
+    const char *tmp = INDEX_FILE ".tmp";
+    FILE *f = fopen(tmp, "w");
     if (!f) return -1;
 
     for (int i = 0; i < sorted.count; i++) {
@@ -214,12 +215,18 @@ int index_save(const Index *index) {
                     (unsigned)e->mode, hex,
                     (unsigned long long)e->mtime_sec,
                     (unsigned)e->size, e->path) < 0) {
-            fclose(f);
-            return -1;
+            fclose(f); unlink(tmp); return -1;
         }
     }
 
+    // Flush userspace buffers, then fsync to force the bytes to disk before
+    // renaming — without this, a crash between rename and writeback could
+    // leave the index empty or truncated.
+    if (fflush(f) != 0)           { fclose(f); unlink(tmp); return -1; }
+    if (fsync(fileno(f)) != 0)    { fclose(f); unlink(tmp); return -1; }
     fclose(f);
+
+    if (rename(tmp, INDEX_FILE) != 0) { unlink(tmp); return -1; }
     return 0;
 }
 
