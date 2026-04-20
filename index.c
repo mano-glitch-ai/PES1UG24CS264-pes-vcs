@@ -275,7 +275,18 @@ int index_add(Index *index, const char *path) {
     uint64_t mtime_sec  = (uint64_t)st.st_mtime;
     uint32_t size       = (uint32_t)st.st_size;
 
-    // TODO: update existing entry or append new one, then save.
-    (void)index; (void)blob_id; (void)mode; (void)mtime_sec; (void)size;
-    return -1;
+    // Upsert: overwrite every field on an existing entry so re-staging a
+    // file refreshes its hash+mtime+size, otherwise append.
+    IndexEntry *e = index_find(index, path);
+    if (!e) {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        e = &index->entries[index->count++];
+    }
+    e->mode      = mode;
+    e->hash      = blob_id;
+    e->mtime_sec = mtime_sec;
+    e->size      = size;
+    snprintf(e->path, sizeof(e->path), "%s", path);
+
+    return index_save(index);
 }
