@@ -200,7 +200,13 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     // index, writes tree objects, and returns the root tree's hash.
     if (tree_from_index(&c.tree) != 0) return -1;
 
-    // TODO: parent, metadata, serialize+write, publish
+    // Link to prior history. head_read returns -1 when no commit exists
+    // yet (missing HEAD or empty branch file) — that's the root-commit
+    // case, not an error. Leave c.parent uninitialized; commit_serialize
+    // consults has_parent before emitting the "parent <hex>" line.
+    c.has_parent = (head_read(&c.parent) == 0) ? 1 : 0;
+
+    // TODO: metadata, serialize+write, publish
     (void)message; (void)commit_id_out;
     return -1;
 }
