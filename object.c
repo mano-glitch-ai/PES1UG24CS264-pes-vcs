@@ -76,9 +76,36 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     // Content-addressed name: SHA-256 over the full object bytes.
     compute_hash(full, full_len, id_out);
 
-    // TODO: shard, atomic temp+fsync+rename
+    // Derive the shard directory (first two hex chars) and the final path.
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(id_out, hex);
+
+    char dir[64];
+    snprintf(dir, sizeof(dir), "%s/%.2s", OBJECTS_DIR, hex);
+    mkdir(dir, 0755);
+
+    char path[128];
+    snprintf(path, sizeof(path), "%s/%s", dir, hex + 2);
+
+    // Atomic write: tmp file → fsync(data) → rename → fsync(dir).
+    char tmp_path[160];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+
+    int fd = open(tmp_path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) { free(full); return -1; }
+    if (write(fd, full, full_len) != (ssize_t)full_len) {
+        close(fd); unlink(tmp_path); free(full); return -1;
+    }
+    if (fsync(fd) != 0) { close(fd); unlink(tmp_path); free(full); return -1; }
+    close(fd);
     free(full);
-    return -1;
+
+    if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
+
+    int dir_fd = open(dir, O_RDONLY);
+    if (dir_fd >= 0) { fsync(dir_fd); close(dir_fd); }
+
+    return 0;
 }
 
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
