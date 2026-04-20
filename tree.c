@@ -99,7 +99,30 @@ static int compare_index_entries(const void *a, const void *b) {
 // and returns its hash in *out_hash. Recurses to build subtrees.
 static int build_tree_level(const IndexEntry *entries, int lo, int hi,
                             int prefix_len, ObjectID *out_hash) {
-    (void)entries; (void)lo; (void)hi; (void)prefix_len; (void)out_hash;
+    Tree tree;
+    tree.count = 0;
+
+    int i = lo;
+    while (i < hi) {
+        if (tree.count >= MAX_TREE_ENTRIES) return -1;
+        const char *rest = entries[i].path + prefix_len;
+        const char *slash = strchr(rest, '/');
+
+        if (!slash) {
+            // Leaf: the remaining path has no separator, so this entry is
+            // a file directly in the current directory.
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = entries[i].mode;
+            e->hash = entries[i].hash;
+            snprintf(e->name, sizeof(e->name), "%s", rest);
+            i++;
+        } else {
+            // Subtree case handled in a follow-up commit.
+            return -1;
+        }
+    }
+
+    (void)out_hash;
     return -1;
 }
 
