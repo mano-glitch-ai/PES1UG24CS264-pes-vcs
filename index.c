@@ -267,7 +267,15 @@ int index_add(Index *index, const char *path) {
     free(data);
     if (rc != 0) return -1;
 
-    // TODO: gather metadata via stat, then update/append and save.
-    (void)index; (void)blob_id;
+    // Metadata: exec-bit sets mode to 100755 (vs 100644), mtime and size are
+    // snapshotted so index_status can fast-path unchanged-file detection.
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+    uint32_t mode       = (st.st_mode & S_IXUSR) ? 0100755 : 0100644;
+    uint64_t mtime_sec  = (uint64_t)st.st_mtime;
+    uint32_t size       = (uint32_t)st.st_size;
+
+    // TODO: update existing entry or append new one, then save.
+    (void)index; (void)blob_id; (void)mode; (void)mtime_sec; (void)size;
     return -1;
 }
