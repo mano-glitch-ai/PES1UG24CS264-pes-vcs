@@ -136,7 +136,15 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     }
     fclose(f);
 
-    // TODO: integrity check (recompute SHA-256, compare to id)
+    // Integrity check: recompute SHA-256 over the raw bytes and confirm it
+    // matches the hash the caller asked for. A mismatch means corruption
+    // on disk (or an attacker who swapped the file) — fail closed.
+    ObjectID computed;
+    compute_hash(full, full_len, &computed);
+    if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) {
+        free(full);
+        return -1;
+    }
 
     // Header terminator: the first NUL separates "<type> <size>" from the payload.
     uint8_t *nul = memchr(full, '\0', full_len);
