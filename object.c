@@ -157,9 +157,13 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
 
     size_t header_len = (size_t)(nul - full) + 1;
     *len_out = full_len - header_len;
-    *data_out = malloc(*len_out);
+
+    // Over-allocate by 1 and null-terminate: PROVIDED commit_parse/tree_parse
+    // use sscanf %s which requires NUL termination beyond *len_out.
+    *data_out = malloc(*len_out + 1);
     if (!*data_out) { free(full); return -1; }
     memcpy(*data_out, full + header_len, *len_out);
+    ((uint8_t *)*data_out)[*len_out] = '\0';
 
     free(full);
     return 0;
