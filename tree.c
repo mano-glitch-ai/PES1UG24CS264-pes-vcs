@@ -87,6 +87,13 @@ static int compare_tree_entries(const void *a, const void *b) {
     return strcmp(((const TreeEntry *)a)->name, ((const TreeEntry *)b)->name);
 }
 
+// Sort index entries alphabetically by path so entries sharing a
+// subdirectory prefix become contiguous — enables single-pass grouping
+// during recursive tree construction.
+static int compare_index_entries(const void *a, const void *b) {
+    return strcmp(((const IndexEntry *)a)->path, ((const IndexEntry *)b)->path);
+}
+
 // Serialize a Tree struct into binary format for storage.
 // Caller must free(*data_out).
 // Returns 0 on success, -1 on error.
@@ -137,7 +144,9 @@ int tree_from_index(ObjectID *id_out) {
     Index index;
     if (index_load(&index) != 0) return -1;
 
-    // TODO: sort, build recursively, write objects
+    qsort(index.entries, index.count, sizeof(IndexEntry), compare_index_entries);
+
+    // TODO: build recursively, write objects
     (void)id_out;
     return -1;
 }
