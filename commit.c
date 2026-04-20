@@ -206,7 +206,12 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     // consults has_parent before emitting the "parent <hex>" line.
     c.has_parent = (head_read(&c.parent) == 0) ? 1 : 0;
 
-    // TODO: metadata, serialize+write, publish
-    (void)message; (void)commit_id_out;
+    // Identity + timing + message round out the commit payload.
+    snprintf(c.author, sizeof(c.author), "%s", pes_author());
+    c.timestamp = (uint64_t)time(NULL);
+    snprintf(c.message, sizeof(c.message), "%s", message);
+
+    // TODO: serialize+write, publish
+    (void)commit_id_out;
     return -1;
 }
