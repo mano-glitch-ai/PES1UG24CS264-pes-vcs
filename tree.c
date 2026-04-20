@@ -94,6 +94,15 @@ static int compare_index_entries(const void *a, const void *b) {
     return strcmp(((const IndexEntry *)a)->path, ((const IndexEntry *)b)->path);
 }
 
+// Build the tree for entries[lo..hi) whose paths all share the first
+// prefix_len characters. Writes the serialized tree to the object store
+// and returns its hash in *out_hash. Recurses to build subtrees.
+static int build_tree_level(const IndexEntry *entries, int lo, int hi,
+                            int prefix_len, ObjectID *out_hash) {
+    (void)entries; (void)lo; (void)hi; (void)prefix_len; (void)out_hash;
+    return -1;
+}
+
 // Serialize a Tree struct into binary format for storage.
 // Caller must free(*data_out).
 // Returns 0 on success, -1 on error.
@@ -146,7 +155,5 @@ int tree_from_index(ObjectID *id_out) {
 
     qsort(index.entries, index.count, sizeof(IndexEntry), compare_index_entries);
 
-    // TODO: build recursively, write objects
-    (void)id_out;
-    return -1;
+    return build_tree_level(index.entries, 0, index.count, 0, id_out);
 }
