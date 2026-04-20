@@ -10,11 +10,15 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+/* Weak: index_load lives in index.c which isn't linked into test_tree. */
+extern int index_load(Index *index) __attribute__((weak));
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -130,8 +134,10 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
+    Index index;
+    if (index_load(&index) != 0) return -1;
+
+    // TODO: sort, build recursively, write objects
     (void)id_out;
     return -1;
 }
