@@ -220,6 +220,7 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     free(data);
     if (rc != 0) return -1;
 
-    // TODO: publish via head_update
-    return -1;
+    // Publish: move the current branch ref to the new commit. This is the
+    // atomic pointer swing that makes the commit visible to `pes log`.
+    return head_update(commit_id_out);
 }
