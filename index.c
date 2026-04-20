@@ -135,10 +135,50 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    index->count = 0;
+
+    FILE *f = fopen(INDEX_FILE, "r");
+    if (!f) return 0;  // No file yet → empty index, not an error.
+
+    char line[1024];
+    while (fgets(line, sizeof(line), f)) {
+        if (index->count >= MAX_INDEX_ENTRIES) { fclose(f); return -1; }
+
+        IndexEntry *e = &index->entries[index->count];
+        char hex[HASH_HEX_SIZE + 1];
+        unsigned int mode;
+        unsigned long long mtime;
+        unsigned int size;
+        int consumed = 0;
+
+        // Parse the four fixed-width fields; %n captures the offset so we can
+        // copy the remainder (the path, which may contain spaces) verbatim.
+        if (sscanf(line, "%o %64s %llu %u %n",
+                   &mode, hex, &mtime, &size, &consumed) < 4 || consumed == 0) {
+            fclose(f);
+            return -1;
+        }
+
+        const char *path = line + consumed;
+        size_t path_len = strlen(path);
+        while (path_len > 0 && (path[path_len - 1] == '\n' || path[path_len - 1] == '\r')) {
+            path_len--;
+        }
+        if (path_len == 0 || path_len >= sizeof(e->path)) { fclose(f); return -1; }
+
+        if (hex_to_hash(hex, &e->hash) != 0) { fclose(f); return -1; }
+
+        e->mode = mode;
+        e->mtime_sec = mtime;
+        e->size = size;
+        memcpy(e->path, path, path_len);
+        e->path[path_len] = '\0';
+
+        index->count++;
+    }
+
+    fclose(f);
+    return 0;
 }
 
 // Save the index to .pes/index atomically.
