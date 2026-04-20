@@ -55,8 +55,19 @@ int object_exists(const ObjectID *id) {
 // ─── TODO ────────────────────────────────────────────────────────────────────
 
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TODO: build header, hash header+data, shard, atomic temp+fsync+rename
-    (void)type; (void)data; (void)len; (void)id_out;
+    // Resolve the type string that prefixes the header.
+    const char *type_str;
+    if (type == OBJ_BLOB)        type_str = "blob";
+    else if (type == OBJ_TREE)   type_str = "tree";
+    else if (type == OBJ_COMMIT) type_str = "commit";
+    else return -1;
+
+    // Build "<type> <size>\0" — header_len includes the terminating NUL.
+    char header[64];
+    int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
+
+    // TODO: hash header+data, shard, atomic temp+fsync+rename
+    (void)header_len; (void)data; (void)id_out;
     return -1;
 }
 
