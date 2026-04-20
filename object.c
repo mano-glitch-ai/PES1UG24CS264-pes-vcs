@@ -115,7 +115,44 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 }
 
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: read file, verify SHA-256, parse header, extract data
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
-    return -1;
+    // Resolve the on-disk path from the hash.
+    char path[128];
+    object_path(id, path, sizeof(path));
+
+    // Slurp the whole file into memory.
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long size = ftell(f);
+    if (size < 0) { fclose(f); return -1; }
+    rewind(f);
+
+    size_t full_len = (size_t)size;
+    uint8_t *full = malloc(full_len);
+    if (!full) { fclose(f); return -1; }
+    if (fread(full, 1, full_len, f) != full_len) {
+        fclose(f); free(full); return -1;
+    }
+    fclose(f);
+
+    // TODO: integrity check (recompute SHA-256, compare to id)
+
+    // Header terminator: the first NUL separates "<type> <size>" from the payload.
+    uint8_t *nul = memchr(full, '\0', full_len);
+    if (!nul) { free(full); return -1; }
+
+    if (strncmp((char *)full, "blob ", 5) == 0)        *type_out = OBJ_BLOB;
+    else if (strncmp((char *)full, "tree ", 5) == 0)   *type_out = OBJ_TREE;
+    else if (strncmp((char *)full, "commit ", 7) == 0) *type_out = OBJ_COMMIT;
+    else { free(full); return -1; }
+
+    size_t header_len = (size_t)(nul - full) + 1;
+    *len_out = full_len - header_len;
+    *data_out = malloc(*len_out);
+    if (!*data_out) { free(full); return -1; }
+    memcpy(*data_out, full + header_len, *len_out);
+
+    free(full);
+    return 0;
 }
