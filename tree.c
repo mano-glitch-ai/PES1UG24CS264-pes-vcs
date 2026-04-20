@@ -117,8 +117,33 @@ static int build_tree_level(const IndexEntry *entries, int lo, int hi,
             snprintf(e->name, sizeof(e->name), "%s", rest);
             i++;
         } else {
-            // Subtree case handled in a follow-up commit.
-            return -1;
+            // Subdirectory: find the run of siblings [i..j) sharing this
+            // same next-component prefix, then recurse to build the subtree.
+            size_t comp_len = (size_t)(slash - rest);
+            int child_prefix_len = prefix_len + (int)comp_len + 1;
+
+            int j = i + 1;
+            while (j < hi) {
+                const char *rj = entries[j].path + prefix_len;
+                if (strlen(rj) > comp_len && rj[comp_len] == '/' &&
+                    memcmp(rj, rest, comp_len) == 0) {
+                    j++;
+                } else {
+                    break;
+                }
+            }
+
+            ObjectID subtree_hash = {{0}};
+            if (build_tree_level(entries, i, j, child_prefix_len,
+                                 &subtree_hash) != 0) {
+                return -1;
+            }
+
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = MODE_DIR;
+            e->hash = subtree_hash;
+            snprintf(e->name, sizeof(e->name), "%.*s", (int)comp_len, rest);
+            i = j;
         }
     }
 
