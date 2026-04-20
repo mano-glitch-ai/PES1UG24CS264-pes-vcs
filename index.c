@@ -201,33 +201,42 @@ static int compare_index_entries_by_path(const void *a, const void *b) {
 }
 
 int index_save(const Index *index) {
-    // Work on a mutable copy so we can sort without violating `const`.
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry),
-          compare_index_entries_by_path);
+    // Heap-allocate a sort buffer sized to the live entries only. Copying
+    // the whole Index (which contains a MAX_INDEX_ENTRIES-sized inline
+    // array, ~5.4 MB) to the stack would overflow on top of the caller's
+    // own Index local.
+    IndexEntry *sorted = NULL;
+    if (index->count > 0) {
+        sorted = malloc((size_t)index->count * sizeof(IndexEntry));
+        if (!sorted) return -1;
+        memcpy(sorted, index->entries, (size_t)index->count * sizeof(IndexEntry));
+        qsort(sorted, index->count, sizeof(IndexEntry),
+              compare_index_entries_by_path);
+    }
 
     const char *tmp = INDEX_FILE ".tmp";
     FILE *f = fopen(tmp, "w");
-    if (!f) return -1;
+    if (!f) { free(sorted); return -1; }
 
-    for (int i = 0; i < sorted.count; i++) {
-        const IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < index->count; i++) {
+        const IndexEntry *e = &sorted[i];
         char hex[HASH_HEX_SIZE + 1];
         hash_to_hex(&e->hash, hex);
         if (fprintf(f, "%o %s %llu %u %s\n",
                     (unsigned)e->mode, hex,
                     (unsigned long long)e->mtime_sec,
                     (unsigned)e->size, e->path) < 0) {
-            fclose(f); unlink(tmp); return -1;
+            fclose(f); unlink(tmp); free(sorted); return -1;
         }
     }
 
     // Flush userspace buffers, then fsync to force the bytes to disk before
     // renaming — without this, a crash between rename and writeback could
     // leave the index empty or truncated.
-    if (fflush(f) != 0)           { fclose(f); unlink(tmp); return -1; }
-    if (fsync(fileno(f)) != 0)    { fclose(f); unlink(tmp); return -1; }
+    if (fflush(f) != 0)           { fclose(f); unlink(tmp); free(sorted); return -1; }
+    if (fsync(fileno(f)) != 0)    { fclose(f); unlink(tmp); free(sorted); return -1; }
     fclose(f);
+    free(sorted);
 
     if (rename(tmp, INDEX_FILE) != 0) { unlink(tmp); return -1; }
     return 0;
