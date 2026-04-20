@@ -24,6 +24,9 @@
 #include <unistd.h>
 #include <dirent.h>
 
+/* Forward decl: no object.h in template. */
+extern int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
@@ -240,8 +243,31 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
+    // Read the working-tree file into memory.
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long raw_len = ftell(f);
+    if (raw_len < 0)                { fclose(f); return -1; }
+    rewind(f);
+
+    size_t len = (size_t)raw_len;
+    void *data = malloc(len ? len : 1);
+    if (!data)                      { fclose(f); return -1; }
+    if (len > 0 && fread(data, 1, len, f) != len) {
+        fclose(f); free(data); return -1;
+    }
+    fclose(f);
+
+    // Persist as a blob in the object store; the returned ObjectID is what
+    // the index entry will reference.
+    ObjectID blob_id;
+    int rc = object_write(OBJ_BLOB, data, len, &blob_id);
+    free(data);
+    if (rc != 0) return -1;
+
+    // TODO: gather metadata via stat, then update/append and save.
+    (void)index; (void)blob_id;
     return -1;
 }
