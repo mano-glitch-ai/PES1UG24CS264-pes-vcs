@@ -76,6 +76,12 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     // Content-addressed name: SHA-256 over the full object bytes.
     compute_hash(full, full_len, id_out);
 
+    // Deduplication: same content → same hash → object already on disk.
+    if (object_exists(id_out)) {
+        free(full);
+        return 0;
+    }
+
     // Derive the shard directory (first two hex chars) and the final path.
     char hex[HASH_HEX_SIZE + 1];
     hash_to_hex(id_out, hex);
